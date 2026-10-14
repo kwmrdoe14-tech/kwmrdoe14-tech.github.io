@@ -1,0 +1,44 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>移転しました</title>
+<style>body{font-family:-apple-system,"Hiragino Sans",sans-serif;max-width:520px;margin:12vh auto;padding:0 20px;color:#222;line-height:1.7}button{font-size:18px;padding:12px 20px;border:0;border-radius:10px;background:#2f5d50;color:#fff;cursor:pointer;width:100%}a{color:#2f5d50}#s{margin-top:14px;color:#555}</style></head><body>
+<h2 id="h">このページは移転しました</h2><p id="m">読み込み中…</p><div id="b"></div><p id="s"></p>
+<script>
+const APPS={
+ karuta:{to:'https://karuta-movie-2b7f.web.app',idb:['karuta-video-app'],ls:[]},
+ ondoku:{to:'https://ondoku-c1a9a.web.app',idb:[],ls:['ondokuTrainer_v1']},
+ yomikurabe:{to:'https://yomikurabe-a0357.web.app',idb:['yomikurabe'],ls:['yk:']},
+ 'karuta-anki':{to:'https://karuta-anki.web.app',idb:[],ls:['ka_']},
+ mendan:{to:'https://sotsuron-mendan.web.app',idb:[],ls:['mendan-']},
+ pair:{to:'https://pairapp-c1a9a.web.app',idb:[],ls:[]},
+ seijo:{to:'https://inorder-c1a9a.web.app',idb:[],ls:[]}
+};
+const seg=location.pathname.split('/').filter(Boolean)[0]||'';
+const A=APPS[seg];const $=id=>document.getElementById(id);
+const req=r=>new Promise((ok,ng)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>ng(r.error)});
+async function dumpIdb(name){
+ const ex=indexedDB.databases?(await indexedDB.databases()).some(d=>d.name===name):true;if(!ex)return null;
+ const o=indexedDB.open(name);let created=false;o.onupgradeneeded=()=>{created=true};const db=await req(o);
+ if(created){db.close();indexedDB.deleteDatabase(name);return null}
+ const out={name,version:db.version,stores:[]};
+ for(const sn of db.objectStoreNames){const st=db.transaction(sn).objectStore(sn);
+  const idx=[...st.indexNames].map(n=>{const i=st.index(n);return{name:n,keyPath:i.keyPath,unique:i.unique,multiEntry:i.multiEntry}});
+  const keys=await req(st.getAllKeys()),vals=await req(db.transaction(sn).objectStore(sn).getAll());
+  out.stores.push({name:sn,keyPath:st.keyPath,autoIncrement:st.autoIncrement,indexes:idx,keys,vals})}
+ db.close();let n=out.stores.reduce((a,s)=>a+s.keys.length,0);return n?out:null}
+async function collect(){
+ const ls={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(A.ls.some(p=>k===p||k.startsWith(p)))ls[k]=localStorage.getItem(k)}
+ const idb=[];for(const n of A.idb){const d=await dumpIdb(n);if(d)idb.push(d)}
+ return{ls,idb,count:Object.keys(ls).length+idb.reduce((a,d)=>a+d.stores.reduce((b,s)=>b+s.keys.length,0),0)}}
+(async()=>{
+ if(!A){$('m').textContent='お探しのページは見つかりませんでした。';return}
+ let data;try{data=await collect()}catch(e){data={count:0}}
+ if(!data.count){$('m').innerHTML='新しいアドレスに移動します…<br><a href="'+A.to+'">'+A.to+'</a>';setTimeout(()=>location.replace(A.to),1500);return}
+ $('m').innerHTML='新しいアドレス：<a href="'+A.to+'">'+A.to+'</a><br>この端末に残っている記録（'+data.count+'件）を新しいアドレスに移せます。';
+ const btn=document.createElement('button');btn.textContent='記録を移して新しいページを開く';$('b').append(btn);
+ btn.onclick=()=>{const w=window.open(A.to+'/migrate.html','_blank');if(!w){$('s').textContent='ポップアップがブロックされました。許可してからもう一度押してください。';return}
+  $('s').textContent='移しています…（このページは閉じないでください）';
+  addEventListener('message',e=>{if(e.origin!==A.to)return;
+   if(e.data==='ready')w.postMessage({mig:data},A.to);
+   if(e.data&&e.data.done){$('s').textContent='完了しました（'+e.data.done+'件）。新しいページで記録を確認できます。このページは閉じてかまいません。';$('b').innerHTML=''}
+   if(e.data&&e.data.err)$('s').textContent='エラー：'+e.data.err})}
+})();
+</script></body></html>
